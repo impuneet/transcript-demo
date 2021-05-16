@@ -1,0 +1,213 @@
+<style>
+    #all {
+  background-color: lightgrey;
+  border-radius: 10px;
+  padding: 20px;
+  border: 1px solid;
+  display: inline-block;
+  /*height:500px;*/
+  margin: 30px;
+  width: 90%;
+}
+
+.cues {
+  color: blue;
+}
+
+.cues:hover {
+  text-decoration: underline;
+}
+
+.cues.current {
+  color: black;
+  font-weight: bold;
+}
+
+#myVideo {
+  display: block;
+  float: left;
+  margin-right: 2.85714%;
+  width: 65.71429%;
+  background-color: black;
+  position: relative;
+}
+
+#transcript {
+  padding: 10px;
+  border: 1px solid;
+  float: left;
+  max-height: 225px;
+  overflow: auto;
+  width: 25%;
+  margin: 0;
+  font-size: 14px;
+  list-style: none;
+}
+
+</style>
+
+
+<section id="all">
+    <h1>Using the track API to extract the content of webVTT files in <code>&lt;track&gt;</code> elements</h1>
+    <p>Click on the buttons under the video to extract the english or german subtitles
+    </p>
+    <p>Look at the HTML and JS code.</p>
+    <p>
+  
+      <button disabled id="buttonEnglish" onclick="loadTranscript('en');">
+        Display English transcript
+      </button>
+  
+      <button disabled id="buttonDeutsch" onclick="loadTranscript('de');">
+        Display Deutsch transcript
+      </button>
+  
+    </p>
+    <audio  id="myVideo" preload="metadata" controls >
+      <source src="./assets/sound.mp3" type="audio/mp3">
+      <track label="English subtitles" kind="subtitles" srclang="en" src="./assets/subtitles.vtt">
+    </audio >
+    <div id="transcript"></div>
+  </section>
+  
+
+  <script>
+      var video, transcriptDiv;
+var tracks, trackElems, tracksURLs = [];
+var buttonEnglish, buttonDeutsch;
+
+window.onload = function() {
+  console.log("init");
+  // when the page is loaded
+  video = document.querySelector("#myVideo");
+  transcriptDiv = document.querySelector("#transcript");
+  
+  // The tracks as HTML elements
+  trackElems = document.querySelectorAll("track");
+  for(var i = 0; i < trackElems.length; i++) {
+    var currentTrackElem = trackElems[i];
+    tracksURLs[i] = currentTrackElem.src;
+  }
+  
+  buttonEnglish = document.querySelector("#buttonEnglish");
+  buttonDeutsch = document.querySelector("#buttonDeutsch");
+  
+  // we enable the buttons and show transcript
+  buttonEnglish.disabled = false;
+  buttonDeutsch.disabled = false;
+    
+  // The tracks as JS objects
+  tracks = video.textTracks;
+};
+
+function loadTranscript(lang) {
+  // clear current transcript
+  clearTranscriptDiv();
+  
+  // set all track mode to disabled. We will only activate the
+  // one whose content will be displayed as transcript
+  disableAllTracks();
+  
+  // Locate the track with language = lang
+  for(var i = 0; i < tracks.length; i++) {
+    // current track
+    var track = tracks[i];
+    var trackAsHtmlElem = trackElems[i];
+  
+    if((track.language === lang) && (track.kind !== "chapters")) {
+      track.mode="showing";
+
+      if(trackAsHtmlElem.readyState === 2) {
+        // the track has already been loaded
+        displayCues(track);
+      } else {
+        displayCuesAfterTrackLoaded(trackAsHtmlElem, track);
+      }
+      
+    }
+  } 
+}
+  
+
+function displayCuesAfterTrackLoaded(trackElem, track) {
+  trackElem.addEventListener('load', function(e) {
+      console.log("track loaded");
+      displayCues(track);
+   });
+}
+function disableAllTracks() {
+    for(var i = 0; i < tracks.length; i++) 
+      tracks[i].mode = "disabled";
+}
+
+function displayCues(track) {
+    var cues = track.cues;
+    //append all the subtitle texts to 
+      for(var i=0, len = cues.length; i < len; i++) {
+        var cue = cues[i];
+        addCueListeners(cue);
+
+        var voices = getVoices(cue.text);
+        var transText="";
+        if (voices.length > 0) {
+            for (var j = 0; j < voices.length; j++) { // how many voices ?
+                transText += voices[j].voice + ': ' + removeHTML(voices[j].text);
+            }
+          } else 
+             transText = cue.text; // not a voice text
+        var clickableTransText = "<li class='cues' id=" + cue.id +  " onclick='jumpTo(" + cue.startTime + ");'" + ">" + transText + "</li>";
+
+        addToTranscriptDiv(clickableTransText);
+      }
+  }
+
+function getVoices(speech) {  // takes a text content and check if there are voices 
+  var voices = [];            // inside
+  var pos = speech.indexOf('<v'); // voices are like <v michel> ....
+  while (pos != -1) {
+    endVoice = speech.indexOf('>');
+    var voice = speech.substring(pos + 2, endVoice).trim();
+    var endSpeech = speech.indexOf('</v>');
+    var text = speech.substring(endVoice + 1, endSpeech);
+    voices.push({
+       'voice': voice,
+       'text': text
+    });
+    speech = speech.substring(endSpeech + 4);
+    pos = speech.indexOf('<v');
+  }
+  return voices;
+}
+
+function removeHTML(text) {
+  var div = document.createElement('div');
+  div.innerHTML = text;
+  return div.textContent || div.innerText || '';
+}
+function jumpTo(time) {
+  video.currentTime = time;
+  video.play();
+}
+
+function clearTranscriptDiv() {
+  transcriptDiv.innerHTML = "";
+}
+
+function addToTranscriptDiv(htmlText) {
+  transcriptDiv.innerHTML += htmlText;
+}
+
+function addCueListeners(cue) {
+  cue.onenter = function(){
+    console.log('enter id=' + this.id);
+    var transcriptText = document.getElementById(this.id);
+    transcriptText.classList.add("current");
+  };
+
+  cue.onexit = function(){
+    console.log('exit id=' + cue.id);
+   var transcriptText = document.getElementById(this.id); transcriptText.classList.remove("current");
+  };
+}
+
+  </script>
